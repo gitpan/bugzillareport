@@ -1,0 +1,6 @@
+INSTALL
+MANIFEST
+Makefile.PL
+README
+bin/bugzillareport
+META.yml                                 Module meta-data (added by MakeMaker)

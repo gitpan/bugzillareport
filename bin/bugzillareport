@@ -1,0 +1,260 @@
+#!/usr/bin/perl
+use strict;
+use vars qw($VERSION);
+use LEOCHARRE::CLI2 ':all','oct:';
+use LEOCHARRE::Dir ':all';
+#use Smart::Comments '###';
+use HTML::Template;
+use Text::Flowed 'reformat';
+$VERSION = sprintf "%d.%02d", q$Revision: 1.2 $ =~ /(\d+)/g;
+use Time::Format;
+
+use YAML::DBH;
+#use Test::Simple 'no_plan';
+my $conf = '/etc/bugzillareport.conf';
+-f $conf or die("missing $conf");
+
+my $dbh = YAML::DBH::yaml_dbh($conf);
+#ok $dbh, 'dbh()';
+
+# all bugs..
+my @bugs = @{ $dbh->selectcol_arrayref('SELECT bug_id FROM bugs ORDER BY delta_ts DESC') };
+
+my $bugcount = @bugs;
+#ok( defined $bugcount, "got $bugcount bugs");
+$bugcount or exit;
+
+
+
+my @BUGLOOP;
+
+for my $bug_id (@bugs){
+   my $href = bug_href($bug_id);
+
+   $href->{short_desc}=~/^bogus/i and next;
+   ### $href;  
+   
+   $href->{bug_status} =
+      $href->{bug_status}=~/RESO|CLOS/ ? 'RESOLVED' : 'OPEN';
+
+   if ($opt_o) { ($href->{bug_status}) eq 'OPEN' or next } 
+   elsif ($opt_c) { ($href->{bug_status}) eq 'RESOLVED' or next } 
+      
+   $href->{divider} = "\n\n".('='x80);
+   push @BUGLOOP, $href;
+   
+   
+}
+
+
+
+my $tmpl = HTML::Template->new( scalarref => \q{<TMPL_VAR TITLE>
+<TMPL_VAR DATE>
+<TMPL_VAR SUBTITLE>
+<TMPL_LOOP BUGLOOP>
+<TMPL_VAR DIVIDER>
+<TMPL_VAR SHORT_DESC> (<TMPL_VAR PRODUCT_NAME>)
+Status: <TMPL_VAR BUG_STATUS>
+Bug ID: <TMPL_VAR BUG_ID>
+<TMPL_VAR COMMENTS>
+</TMPL_LOOP>
+}, die_on_bad_params => 0);
+
+$tmpl->param( bugloop => \@BUGLOOP );
+$tmpl->param( title   => ( $opt_t || 'IT Bugzilla Dev Tasklist') );
+$tmpl->param( date    => Time::Format::time_format('mm dd yyyy, hh:mm', time()) );
+#$tmpl->param( open_issues => (scalar (grep { $_->{bug_status}=~/RESO|CLOS/ } @BUGLOOP)) );
+$opt_o and $tmpl->param( subtitle => "Recent open tasks");
+$opt_c and $tmpl->param( subtitle => "Recent resolved tasks");
+
+
+
+print $tmpl->output;
+
+exit;
+
+
+sub bug_href {
+   my $bug_id = shift;
+   
+   my %data = ( # this is here for help to viewer of code
+      bug_status     => undef,
+      product_id     => undef,
+      product_name   => undef,
+      bug_id         => $bug_id,
+      short_desc     => undef,
+      comments       => undef,      
+   );
+   
+   ( $data{bug_status}, $data{product_id} ) = $dbh->selectrow_array("SELECT bug_status, product_id FROM bugs WHERE bug_id = $bug_id");
+   
+   
+   ( $data{product_name} ) = $dbh->selectrow_array("SELECT name FROM products WHERE id = $data{product_id}");
+   
+   ( $data{short_desc}, $data{comments} ) = $dbh->selectrow_array("SELECT short_desc, comments FROM bugs_fulltext WHERE bug_id = $bug_id");
+   
+   $data{comments} = reformat($data{comments}, { max_length => 80, });
+   
+   $data{bug_status} ||= 'OPEN';
+
+   \%data;
+   
+}
+
+
+
+
+
+
+sub usage {q{bugzillareport [OPTION].. 
+Prints text list of bugzilla bugs to stdout suitable for non IT people.
+
+   -d       debug
+   -h       help
+   -v       version
+   -o       only open bugs
+   -c       only closed bugs
+   -t       title
+
+Try man 'bugzillareport' for more info.
+}}
+
+
+
+__END__
+
+=pod
+
+=head1 NAME
+
+bugzillareport - Prints text list of bugzilla bugs to stdout suitable for non IT people
+
+=head1 USAGE
+
+bugzillareport [OPTION].. 
+
+   -d       debug
+   -h       help
+   -v       version
+   -o       only open bugs
+   -c       only closed bugs
+
+=head1 DESCRIPTION
+
+Bugzilla is a great bug tracking/development tool.
+
+I often get asked by non tech people, how a project is coming along.
+Bugzilla long text format is *almost* human legible.
+The short detail search is too vague.
+
+This script creates output that is more concise, so you can show it to your
+coworkers- and it will make some sense.
+
+=head2 Motivation
+
+The module WWW::Bugzilla3 allows you to do some of this. 
+But it depends on Bugzilla's xmlrpc.cgi transactions. Which seem not to 
+support full text retrieval, with comments etc.
+
+What bugzillareport does is make direct sql calls to the database itself.
+So while this works for Bugzilla3, it may not work retroactively or in the
+(not so far?) future.
+
+=head2 Example Output
+
+   ================================================================================
+   AP links show wrong file counts (DMS WUI)
+   Status: RESOLVED
+   Bug ID: 11
+   "This past week there were 2 cases where the information in the
+   hearders did not match what was in the folders."...
+   WJA, shows 11 files listed as Invoices Pending Payment, but going to
+   place shows 11 and 2 APIE files.
+   The  various screens in the dms ap process were designed to be for use
+   inhouse. The users were supposed to be able to approve, and disapprove
+   invoices.
+   The managers were to merge an approved invoice with a scanned check.
+
+   We did not design view screens specifically for users in these various
+   steps of the ap process.
+   These various screens have to be designed.
+   This
+
+
+
+
+   ================================================================================
+   Need additional ap process view screens for users (DMS WUI)
+   Status: RESOLVED
+   Bug ID: 16
+   The screens needed are
+
+   1) invoices pending approval
+   API
+
+   2) invoices pending payment
+   APIA APIE
+
+   3) invoices disapproved
+   APD
+
+   4) invoices and checks pending filing
+
+   5) vendor history
+
+   New screens have been made, new logic for navigation bar for ap has
+   been made and deployed.
+
+
+=head1 INSTALL
+
+To install..
+
+   perl Makefile.PL
+   make install
+
+You will also need a /etc/bugzillareport.conf file..
+
+=head2 /etc/bugzillareport.conf
+
+This is a yaml file which contains:
+
+   ---
+   username: buguser
+   password: bugpasss
+   database: bugzilla
+   hostname: localhost
+
+Follows L<YAM::DBH> convention.
+
+=head1 CAVEATS
+
+For this script, you must be running Bugzilla 3+
+You must have the /etc/bugzillareport.conf
+
+=head1 SEE ALSO
+
+L<YAML::DBH>
+L<WWW::Bugzilla3>
+
+=head1 AUTHOR
+
+Leo Charre leocharre at cpan dot org
+
+=head1 COPYRIGHT
+
+Copyright (c) 2009 Leo Charre. All rights reserved.
+
+=head1 LICENSE
+
+This package is free software; you can redistribute it and/or modify it under the same terms as Perl itself, i.e., under the terms of the "Artistic License" or the "GNU General Public License".
+
+=head1 DISCLAIMER
+
+This package is distributed in the hope that it will be useful, but WITHOUT ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.
+
+See the "GNU General Public License" for more details.
+
+=cut
+
+

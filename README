@@ -1,0 +1,69 @@
+bugzillareport 
+===============================================
+
+Bugzilla is a great bug tracking/development tool.
+
+I often get asked by non tech people, how a project is coming along. 
+Bugzilla long text format is *almost* human legible.  The short detail search is too vague.
+
+This script creates output that is more concise, so you can show it to your coworkers- 
+and it will make some sense.
+
+Motivation
+
+The module WWW::Bugzilla3 allows you to do some of this.  But it depends on Bugzilla’s
+xmlrpc.cgi transactions. Which seem not to support full text retrieval, with comments etc.
+
+What bugzillareport does is make direct sql calls to the database itself.  So while this
+works for Bugzilla3, it may not work retroactively or in the (not so far?) future.
+
+Example Output
+
+ ================================================================================
+ AP links show wrong file counts (DMS WUI)
+ Status: RESOLVED
+ Bug ID: 11
+ "This past week there were 2 cases where the information in the
+ hearders did not match what was in the folders."...
+ WJA, shows 11 files listed as Invoices Pending Payment, but going to
+ place shows 11 and 2 APIE files.
+ The  various screens in the dms ap process were designed to be for use
+ inhouse. The users were supposed to be able to approve, and disapprove
+ invoices.
+ The managers were to merge an approved invoice with a scanned check.
+
+ We did not design view screens specifically for users in these various
+ steps of the ap process.
+ These various screens have to be designed.
+ This
+
+ ================================================================================
+ Need additional ap process view screens for users (DMS WUI)
+ Status: RESOLVED
+ Bug ID: 16
+ The screens needed are
+
+
+INSTALLATION
+
+See INSTALL.
+
+DEPENDENCIES
+
+   HTML::Template
+   LEOCHARRE::CLI2
+   LEOCHARRE::Dir
+   Smart::Comments
+   Test::Simple
+   Text::Flowed
+   Time::Format
+   YAML::DBH
+
+COPYRIGHT AND LICENCE
+
+Copyright (C) 2009 by Leo Charre leocharre at cpan dot org
+
+This library is free software; you can redistribute it and/or modify
+it under the same terms as Perl itself, either Perl version 5.8.8 or,
+at your option, any later version of Perl 5 you may have available.
+   
